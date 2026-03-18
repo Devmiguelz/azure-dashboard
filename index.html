@@ -486,10 +486,15 @@ function setDefaultDates(){
 const fmt=d=>d.toISOString().split('T')[0];
 
 async function autoLogin(){
-  show('loading');
-  try{await loadProjects();showHeader();}
-  catch(e){show('login');}
-  hide('loading');
+  showLoading('Reconectando...');
+  try{
+    await loadProjects();
+    showHeader();
+  }catch(e){
+    show('login');
+  }finally{
+    hideLoading();
+  }
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
