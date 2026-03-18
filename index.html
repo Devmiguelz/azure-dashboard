@@ -229,6 +229,32 @@ tbody tr:hover td{background:var(--surface2);}
   display:flex;align-items:center;justify-content:center;}
 .mclose:hover{border-color:var(--accent);color:var(--accent);}
 
+/* ── CUSTOM SELECT WITH SEARCH ── */
+.csel-wrap{position:relative;font-family:var(--mono);font-size:11px;}
+.csel-trigger{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:7px;padding:7px 10px;cursor:pointer;color:var(--text);min-width:150px;
+  transition:border-color .2s;user-select:none;}
+.csel-trigger:hover,.csel-wrap.open .csel-trigger{border-color:var(--accent);}
+.csel-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.csel-arrow{color:var(--text3);font-size:9px;transition:transform .2s;flex-shrink:0;}
+.csel-wrap.open .csel-arrow{transform:rotate(180deg);}
+.csel-drop{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:220px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:9px;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:500;overflow:hidden;}
+.csel-wrap.open .csel-drop{display:block;}
+.csel-search-wrap{padding:8px 8px 6px;}
+.csel-search{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;
+  padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;}
+.csel-search:focus{border-color:var(--accent);}
+.csel-search::placeholder{color:var(--text3);}
+.csel-list{max-height:220px;overflow-y:auto;padding:4px 0 6px;}
+.csel-opt{padding:8px 12px;cursor:pointer;color:var(--text2);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;transition:background .15s;}
+.csel-opt:hover{background:var(--surface2);color:var(--text);}
+.csel-opt.selected{color:var(--accent);}
+.csel-opt.all-opt{color:var(--text3);border-bottom:1px solid var(--border);margin-bottom:3px;padding-bottom:9px;}
+.csel-empty{padding:12px;text-align:center;color:var(--text3);font-size:10px;}
+
 .empty{text-align:center;padding:48px 20px;color:var(--text3);font-family:var(--mono);font-size:11px;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
@@ -299,8 +325,26 @@ tbody tr:hover td{background:var(--surface2);}
     <div style="font-family:var(--mono);font-size:12px;color:var(--text2)" id="projLabel">—</div>
     <div class="sep"></div>
     <div class="filter-wrap">
-      <select class="fsel" id="fRepo"><option value="all">Todos los repos</option></select>
-      <select class="fsel" id="fUser"><option value="all">Todo el equipo</option></select>
+      <div class="csel-wrap" id="wrap-fRepo">
+        <div class="csel-trigger" id="trigger-fRepo" onclick="toggleCsel('fRepo')">
+          <span class="csel-label" id="label-fRepo">Todos los repos</span>
+          <span class="csel-arrow">▾</span>
+        </div>
+        <div class="csel-drop" id="drop-fRepo">
+          <div class="csel-search-wrap"><input class="csel-search" id="search-fRepo" placeholder="Buscar repo..." oninput="filterCsel('fRepo')" onclick="event.stopPropagation()"></div>
+          <div class="csel-list" id="list-fRepo"></div>
+        </div>
+      </div>
+      <div class="csel-wrap" id="wrap-fUser">
+        <div class="csel-trigger" id="trigger-fUser" onclick="toggleCsel('fUser')">
+          <span class="csel-label" id="label-fUser">Todo el equipo</span>
+          <span class="csel-arrow">▾</span>
+        </div>
+        <div class="csel-drop" id="drop-fUser">
+          <div class="csel-search-wrap"><input class="csel-search" id="search-fUser" placeholder="Buscar usuario..." oninput="filterCsel('fUser')" onclick="event.stopPropagation()"></div>
+          <div class="csel-list" id="list-fUser"></div>
+        </div>
+      </div>
       <select class="fsel" id="fTaskType">
         <option value="all">Todos los tipos</option>
         <option value="Bug">Bug</option>
@@ -574,13 +618,10 @@ async function enterProject(id,name){
 }
 
 function populateRepoFilter(){
-  const sel=document.getElementById('fRepo');
-  sel.innerHTML='<option value="all">Todos los repos</option>';
-  data.repos.forEach(r=>{
-    const o=document.createElement('option');
-    o.value=r.id; o.textContent=r.name; sel.appendChild(o);
-  });
+  buildCsel('fRepo','all','Todos los repos',
+    data.repos.map(r=>({value:r.id,label:r.name})));
 }
+
 
 function goProjects(){show('projects');}
 
@@ -594,7 +635,7 @@ async function loadDashboard(){
   document.getElementById('loadBtn').disabled=true;
   data={commits:[],prs:[],tasks:[],repos:data.repos};
 
-  const repoSel=document.getElementById('fRepo').value;
+  const repoSel=getCselValue('fRepo');
   const repos=repoSel==='all'?data.repos:data.repos.filter(r=>r.id===repoSel);
   const proj=currentProject.name;
 
@@ -687,17 +728,14 @@ function buildMembers(){
 }
 
 function populateUserFilter(){
-  const sel=document.getElementById('fUser');
-  sel.innerHTML='<option value="all">Todo el equipo</option>';
-  data.members.forEach(m=>{
-    const o=document.createElement('option');
-    o.value=m.email; o.textContent=m.name; sel.appendChild(o);
-  });
+  buildCsel('fUser','all','Todo el equipo',
+    data.members.map(m=>({value:m.email,label:m.name})));
 }
+
 
 // ── FILTERS ───────────────────────────────────────────────────────────────
 function getFiltered(){
-  const user=document.getElementById('fUser').value;
+  const user=getCselValue('fUser');
   const taskType=document.getElementById('fTaskType').value;
 
   const commits=user==='all'?data.commits:data.commits.filter(c=>(c.author?.email||'')==user||(c.author?.name||'').toLowerCase().includes(user.split('@')[0]));
@@ -717,7 +755,7 @@ function renderAll(from,to){
   const{commits,prs,tasks}=getFiltered();
   const bugs=tasks.filter(t=>t['System.WorkItemType']==='Bug'&&!['Closed','Done'].includes(t['System.State']));
   const reviews=data.prs.filter(pr=>{
-    const user=document.getElementById('fUser').value;
+    const user=getCselValue('fUser');
     if(user==='all')return false;
     return(pr.reviewers||[]).some(r=>r.uniqueName===user);
   });
@@ -791,12 +829,13 @@ function renderTeam(){
 
 function filterByMember(email,el){
   document.querySelectorAll('.mcard').forEach(c=>c.classList.remove('sel'));
-  const cur=document.getElementById('fUser').value;
+  const cur=getCselValue('fUser');
   if(cur===email){
-    document.getElementById('fUser').value='all';
+    selectCsel('fUser','all', cselState['fUser']?.defaultLabel||'Todo el equipo');
     el.classList.remove('sel');
   }else{
-    document.getElementById('fUser').value=email;
+    const member=data.members.find(m=>m.email===email);
+    selectCsel('fUser',email,member?.name||email);
     el.classList.add('sel');
   }
   const from=document.getElementById('fFrom').value;
@@ -1026,7 +1065,80 @@ function mkChart(id,type,labels,datasets,options={}){
   charts[id]=new Chart(document.getElementById(id),{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:true,...options}});
 }
 
-// ── SCREEN HELPER ─────────────────────────────────────────────────────────
+// ── CUSTOM SELECT ─────────────────────────────────────────────────────────
+const cselState={};
+
+function buildCsel(id, defaultVal, defaultLabel, options){
+  cselState[id]={value:defaultVal,options,defaultVal,defaultLabel};
+  renderCselList(id,'');
+  setCselLabel(id,defaultVal,defaultLabel,options);
+}
+
+function getCselValue(id){
+  return cselState[id]?.value??'all';
+}
+
+function toggleCsel(id){
+  const wrap=document.getElementById('wrap-'+id);
+  const isOpen=wrap.classList.contains('open');
+  // close all
+  document.querySelectorAll('.csel-wrap.open').forEach(w=>w.classList.remove('open'));
+  if(!isOpen){
+    wrap.classList.add('open');
+    const inp=document.getElementById('search-'+id);
+    inp.value='';
+    renderCselList(id,'');
+    setTimeout(()=>inp.focus(),50);
+  }
+}
+
+function filterCsel(id){
+  const q=document.getElementById('search-'+id).value;
+  renderCselList(id,q);
+}
+
+function renderCselList(id,q){
+  const s=cselState[id]; if(!s)return;
+  const list=document.getElementById('list-'+id);
+  const lq=q.toLowerCase();
+  const filtered=s.options.filter(o=>o.label.toLowerCase().includes(lq));
+
+  let html=q?'':
+    `<div class="csel-opt all-opt${s.value==='all'?' selected':''}" onclick="selectCsel('${id}','all','${s.defaultLabel}')">${s.defaultLabel}</div>`;
+
+  if(!filtered.length){
+    html+='<div class="csel-empty">Sin resultados</div>';
+  } else {
+    filtered.forEach(o=>{
+      const sel=s.value===o.value?' selected':'';
+      html+=`<div class="csel-opt${sel}" onclick="selectCsel('${id}','${o.value.replace(/'/g,"\\'")}','${o.label.replace(/'/g,"\\'")}')">${esc(o.label)}</div>`;
+    });
+  }
+  list.innerHTML=html;
+}
+
+function selectCsel(id,value,label){
+  if(!cselState[id])return;
+  cselState[id].value=value;
+  document.getElementById('label-'+id).textContent=label;
+  document.getElementById('wrap-'+id).classList.remove('open');
+  // update selected styling
+  renderCselList(id,'');
+}
+
+function setCselLabel(id,value,defaultLabel,options){
+  const found=options.find(o=>o.value===value);
+  document.getElementById('label-'+id).textContent=found?found.label:defaultLabel;
+}
+
+// close on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.csel-wrap')){
+    document.querySelectorAll('.csel-wrap.open').forEach(w=>w.classList.remove('open'));
+  }
+});
+
+
 function show(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(name+'Screen').classList.add('active');
